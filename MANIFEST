@@ -1,0 +1,32 @@
+blib/arch/.exists
+blib/arch/auto/NepaliDateTime/.exists
+blib/bin/.exists
+blib/lib/.exists
+blib/lib/auto/NepaliDateTime/.exists
+blib/lib/NepaliDateTime.pm
+blib/lib/NepaliDateTime/Data.pm
+blib/lib/NepaliDateTime/Date.pm
+blib/lib/NepaliDateTime/DateTime.pm
+blib/man1/.exists
+blib/man3/.exists
+blib/script/.exists
+cpanfile
+examples/demo.pl
+lib/NepaliDateTime.pm
+lib/NepaliDateTime/Data.pm
+lib/NepaliDateTime/Date.pm
+lib/NepaliDateTime/DateTime.pm
+LICENSE
+Makefile
+Makefile.PL
+MANIFEST			This list of files
+MANIFEST.bak
+MANIFEST.SKIP
+META.json			Module JSON meta-data (added by MakeMaker)
+META.yml			Module YAML meta-data (added by MakeMaker)
+README.md
+t/01_date.t
+t/02_datetime.t
+t/03_strftime_strptime.t
+t/04_data.t
+t/05_edge_cases.t
