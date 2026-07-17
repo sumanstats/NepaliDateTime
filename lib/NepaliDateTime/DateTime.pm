@@ -9,7 +9,7 @@ use POSIX qw(floor);
 use parent -norequire, 'NepaliDateTime::Date';
 use NepaliDateTime::Data qw();
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 =encoding utf8
 
