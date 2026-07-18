@@ -72,6 +72,10 @@ components (hour, minute, second, microsecond) and Nepal Standard Time
 
 Creates a new BS datetime.  Time defaults to midnight.
 
+    my $dt = NepaliDateTime::DateTime->new(2081, 3, 15, 14, 30, 0);
+    my $dt = NepaliDateTime::DateTime->new(2081, 3, 15);          # midnight
+
+
 =cut
 
 sub new {
@@ -107,6 +111,10 @@ sub _check_time_fields {
 
 Returns the current Nepal Standard Time as a NepaliDateTime::DateTime.
 
+    my $now = NepaliDateTime::DateTime->now();
+    print $now->isoformat();   # e.g. 2081-03-15T14:30:00+05:45
+
+
 =cut
 
 sub now {
@@ -118,6 +126,9 @@ sub now {
 
 Returns the current UTC time as a NepaliDateTime::DateTime (with UTC date
 converted to BS, time kept as UTC).
+
+    my $utc = NepaliDateTime::DateTime->utcnow();
+
 
 =cut
 
@@ -173,6 +184,11 @@ sub from_ad_datetime {
 
 Combine a NepaliDateTime::Date with time components.
 
+    my $date = NepaliDateTime::Date->new(2081, 3, 15);
+    my $dt   = NepaliDateTime::DateTime->combine($date, 14, 30, 0);
+    print $dt->isoformat();   # 2081-03-15T14:30:00+05:45
+
+
 =cut
 
 sub combine {
@@ -212,6 +228,9 @@ sub strptime {
 
 Minimum supported datetime (BS 1975-01-01 00:00:00).
 
+    my $min = NepaliDateTime::DateTime->min();   # 1975-01-01T00:00:00
+
+
 =cut
 
 sub min { NepaliDateTime::DateTime->new($NepaliDateTime::Data::MINYEAR, 1, 1, 0, 0, 0, 0) }
@@ -219,6 +238,9 @@ sub min { NepaliDateTime::DateTime->new($NepaliDateTime::Data::MINYEAR, 1, 1, 0,
 =head2 max()
 
 Maximum supported datetime (BS 2100-12-30 23:59:59.999999).
+
+    my $max = NepaliDateTime::DateTime->max();   # 2100-12-30T23:59:59.999999
+
 
 =cut
 
@@ -236,6 +258,15 @@ sub max {
 
 =head2 hour() / minute() / second() / microsecond()
 
+Read-only accessors for time fields.
+
+    my $dt = NepaliDateTime::DateTime->new(2081, 3, 15, 14, 30, 45, 500000);
+    print $dt->hour();         # 14
+    print $dt->minute();       # 30
+    print $dt->second();       # 45
+    print $dt->microsecond();  # 500000
+
+
 =cut
 
 sub hour        { $_[0]{hour}        }
@@ -246,6 +277,12 @@ sub microsecond { $_[0]{microsecond} }
 =head2 date()
 
 Returns the date part as a NepaliDateTime::Date object.
+
+    my $dt   = NepaliDateTime::DateTime->new(2081, 3, 15, 14, 30, 0);
+    my $date = $dt->date();
+    print ref($date);          # NepaliDateTime::Date
+    print $date->isoformat();  # 2081-03-15
+
 
 =cut
 
@@ -258,6 +295,12 @@ sub date {
 
 Returns the time as C<"HH:MM:SS"> or C<"HH:MM:SS.ffffff"> if microseconds
 are non-zero.
+
+    my $dt = NepaliDateTime::DateTime->new(2081, 3, 15, 14, 30, 45);
+    print $dt->time_string();   # 14:30:45
+    my $dt2 = NepaliDateTime::DateTime->new(2081, 3, 15, 14, 30, 45, 123456);
+    print $dt2->time_string();  # 14:30:45.123456
+
 
 =cut
 
@@ -278,6 +321,11 @@ sub time_string {
 
 Returns C<($year, $month, $day, $hour, $minute, $second, $microsecond)> in
 Gregorian (AD) calendar.
+
+    my $dt = NepaliDateTime::DateTime->new(2081, 3, 15, 14, 30, 0);
+    my ($y, $m, $d, $h, $mi, $s, $us) = $dt->to_ad_datetime();
+    printf "%04d-%02d-%02d %02d:%02d:%02d\n", $y, $m, $d, $h, $mi, $s;
+
 
 =cut
 
@@ -313,6 +361,9 @@ sub to_timestamp {
 
 Returns the UTC offset string, e.g. C<"+05:45">.
 
+    print NepaliDateTime::DateTime->now()->utcoffset_string();   # +05:45
+
+
 =cut
 
 sub utcoffset_string { '+05:45' }
@@ -320,6 +371,9 @@ sub utcoffset_string { '+05:45' }
 =head2 tzname()
 
 Returns C<"NST"> (Nepal Standard Time).
+
+    print NepaliDateTime::DateTime->now()->tzname();   # NST
+
 
 =cut
 
@@ -334,6 +388,12 @@ sub tzname { 'NST' }
 All add_* methods return a new NepaliDateTime::DateTime.
 
 =head2 add_seconds($n)
+
+Returns a new datetime C<$n> seconds in the future (negative for past).
+Day overflow and underflow are handled automatically.
+
+    my $dt2 = $dt->add_seconds(3600);   # +1 hour
+    my $dt3 = $dt->add_seconds(-60);    # -1 minute
 
 =cut
 
@@ -363,17 +423,32 @@ sub add_seconds {
 
 =head2 add_minutes($n)
 
+Returns a new datetime C<$n> minutes in the future (negative for past).
+
+    my $dt2 = $dt->add_minutes(90);    # +90 minutes
+
 =cut
 
 sub add_minutes { $_[0]->add_seconds($_[1] * 60) }
 
 =head2 add_hours($n)
 
+Returns a new datetime C<$n> hours in the future (negative for past).
+
+    my $dt2 = $dt->add_hours(5);    # +5 hours
+
 =cut
 
 sub add_hours { $_[0]->add_seconds($_[1] * 3600) }
 
 =head2 add_days($n)
+
+Returns a new datetime C<$n> days in the future (negative for past),
+preserving the original time-of-day.
+
+    my $dt2 = $dt->add_days(1);    # tomorrow, same time
+    # Operator shorthand:
+    my $dt3 = $dt + 1;             # same result
 
 =cut
 
@@ -390,6 +465,10 @@ sub add_days {
 
 Returns a copy with specified fields replaced. Valid keys:
 C<year>, C<month>, C<day>, C<hour>, C<minute>, C<second>, C<microsecond>.
+
+    my $noon = $dt->replace(hour => 12, minute => 0, second => 0);
+    my $dom1 = $dt->replace(day => 1);
+
 
 =cut
 
@@ -422,6 +501,20 @@ use overload
     '<=>' => \&_op_cmp,
     '""'  => \&isoformat,
     fallback => 1;
+
+=head1 OPERATORS
+
+The following operators are overloaded.  Comparisons use the full timestamp
+(date + time + microseconds) — not just the date ordinal.
+
+    \$dt + 10         Add 10 days; returns a new datetime (time preserved)
+    \$dt - 10         Subtract 10 days
+    \$dt1 - \$dt2     Difference in seconds (float, includes microseconds)
+    \$dt1 == \$dt2    Timestamp equality
+    \$dt1 <  \$dt2    Timestamp less-than
+    "\"            isoformat() string
+
+=cut
 
 sub _total_secs {
     my ($self) = @_;
@@ -476,6 +569,11 @@ sub _op_cmp {
 
 Returns ISO-8601 string: C<"YYYY-MM-DDThh:mm:ss+05:45"> (or with microseconds
 if non-zero).  C<$sep> defaults to C<'T'>.
+
+
+    my $dt = NepaliDateTime::DateTime->new(2081, 3, 15, 14, 30, 0);
+    print $dt->isoformat();       # 2081-03-15T14:30:00+05:45
+    print $dt->isoformat(' ');  # 2081-03-15 14:30:00+05:45
 
 =cut
 
@@ -533,6 +631,11 @@ sub ctime {
 
 Full Devanagari datetime string.
 
+    binmode STDOUT, ":utf8";
+    my $dt = NepaliDateTime::DateTime->new(2081, 3, 15, 14, 30, 0);
+    print $dt->format_devanagari();   # e.g. "२०८१ असार १५, बुधवार १४:३०:००"
+
+
 =cut
 
 sub format_devanagari {
@@ -547,6 +650,10 @@ sub format_devanagari {
 =head2 clone()
 
 Returns a copy of this datetime object.
+
+    my $dt2 = $dt->clone();
+    # $dt == $dt2 is true; refaddr($dt) != refaddr($dt2)
+
 
 =cut
 

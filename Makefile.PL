@@ -4,7 +4,7 @@ use ExtUtils::MakeMaker;
 
 WriteMakefile(
     NAME             => 'NepaliDateTime',
-    AUTHOR           => 'Dr Suman Khanal <suman81765@gmail.com> (SUMAN)',    # TODO: append <you@example.com> / PAUSE id if you plan to release this
+    AUTHOR           => 'Dr Suman Khanal <suman81765@gmail.com> (SUMAN)',
     VERSION_FROM     => 'lib/NepaliDateTime.pm',
     ABSTRACT_FROM    => 'lib/NepaliDateTime.pm',
     LICENSE          => 'mit',
@@ -37,3 +37,21 @@ WriteMakefile(
 
     test => { TESTS => 't/*.t' },
 );
+
+
+
+# if README.md needs to be generated from makefile
+# install of pod::markdown should happen at build time then 
+# sub MY::postamble {
+#     return <<'MAKE_FRAG';
+
+# README.md: lib/NepaliDateTime.pm tools/gen_readme.pl
+# 	$(PERL) tools/gen_readme.pl
+
+# distdir: README.md
+
+# clean ::
+# 	rm -f README.md
+
+# MAKE_FRAG
+# }

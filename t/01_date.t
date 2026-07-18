@@ -4,6 +4,7 @@
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use Test2::V1 '-ipP';
+use Scalar::Util qw(refaddr);
 
 use NepaliDateTime::Date;
 use NepaliDateTime::Data;
@@ -305,9 +306,19 @@ subtest 'replace' => sub {
 subtest 'clone' => sub {
     my $d  = NepaliDateTime::Date->new(2081, 3, 15);
     my $d2 = $d->clone();
-    ok($d == $d2, 'clone equals original');
-    # Different object
-    ok( !($d eq $d2) || "$d" eq "$d2", 'clone is isoformat equal' );
+
+    # Overloaded == compares ordinals — the two dates must be equal.
+    ok($d == $d2, 'clone equals original (ordinal comparison)');
+
+    # String representation must match (via overloaded "").
+    is("$d", "$d2", 'clone has same isoformat string');
+
+    # The clone must be a distinct Perl object (different memory address).
+    # The original test  ok( !($d eq $d2) || "$d" eq "$d2", ... )  was a
+    # tautology: since "" is overloaded to isoformat(), $d eq $d2 is always
+    # true, making !(...) always false, so the || branch always fires and the
+    # condition is always true regardless of what clone() actually does.
+    ok(refaddr($d) != refaddr($d2), 'clone is a distinct object (different refaddr)');
 };
 
 # ---------------------------------------------------------------------------

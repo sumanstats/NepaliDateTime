@@ -76,11 +76,13 @@ Nepal Standard Time is UTC+05:45.
 
 =head1 AUTHOR
 
-Generated for Bikram Sambat date arithmetic in Perl.
+Dr Suman Khanal <suman81765@gmail.com> 
 
-=head1 LICENSE
+=head1 COPYRIGHT
 
-MIT
+This software is copyright (c) 2026 by Dr Suman Khanal.
+
+The full text of the license can be found in the LICENSE file included with this distribution.
 
 =cut
 

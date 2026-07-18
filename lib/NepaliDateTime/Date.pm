@@ -178,7 +178,12 @@ my $_REF_JDN = _ad_to_jdn(@NepaliDateTime::Data::REFERENCE_DATE_AD);
 
 =head2 new($year, $month, $day)
 
-Creates a new BS date. Croaks if the date is out of the supported range.
+Creates a new BS date.  Croaks if the date is outside the supported range
+(BS 1975-01-01 to BS 2100-12-30) or if C<$month>/C<$day> are out of range
+for the given year.
+
+    my $d = NepaliDateTime::Date->new(2081, 3, 15);  # BS 2081-03-15 (Asar 15)
+    print $d->isoformat();   # 2081-03-15
 
 =cut
 
@@ -197,6 +202,9 @@ sub new {
 =head2 today()
 
 Returns today's date in BS (using Nepal Standard Time UTC+05:45).
+
+    my $today = NepaliDateTime::Date->today();
+    printf "Today is %s (%s)\n", $today->isoformat(), $today->day_name();
 
 =cut
 
@@ -233,6 +241,9 @@ sub from_ad {
 
 Construct a date from its BS ordinal (BS 1975-01-01 == 1).
 
+    my $d = NepaliDateTime::Date->from_ordinal(1);   # BS 1975-01-01
+    my $d = NepaliDateTime::Date->from_ordinal(42);  # BS 1975-02-11
+
 =cut
 
 sub from_ordinal {
@@ -245,7 +256,10 @@ sub from_ordinal {
 
 =head2 from_timestamp($epoch)
 
-Construct from a Unix timestamp, converting to Nepal Standard Time.
+Construct a BS date from a Unix timestamp (seconds since 1970-01-01 UTC),
+converting to Nepal Standard Time (UTC+05:45) before the date is determined.
+
+    my $d = NepaliDateTime::Date->from_timestamp(time());  # today in BS
 
 =cut
 
@@ -258,7 +272,11 @@ sub from_timestamp {
 
 =head2 from_iso($string)
 
-Parse an ISO-8601 BS date string C<YYYY-MM-DD>.
+Parse an ISO-8601 BS date string C<"YYYY-MM-DD">.
+Croaks if the string is malformed or the date is out of range.
+
+    my $d = NepaliDateTime::Date->from_iso('2081-03-15');
+    print $d->month_name();   # Asar
 
 =cut
 
@@ -415,6 +433,9 @@ sub weekday_iso {
 
 Full English weekday name, e.g. C<"Wednesday">.
 
+    print NepaliDateTime::Date->new(2081, 3, 15)->day_name();   # Wednesday
+
+
 =cut
 
 sub day_name {
@@ -425,6 +446,9 @@ sub day_name {
 =head2 day_name_abbr()
 
 Abbreviated English weekday name, e.g. C<"Wed">.
+
+    print NepaliDateTime::Date->new(2081, 3, 15)->day_name_abbr();   # Wed
+
 
 =cut
 
@@ -437,6 +461,10 @@ sub day_name_abbr {
 
 Weekday name in Nepali (Devanagari).
 
+    binmode STDOUT, ":utf8";
+    print NepaliDateTime::Date->new(2081, 3, 15)->day_name_np();   # बुधवार
+
+
 =cut
 
 sub day_name_np {
@@ -447,6 +475,9 @@ sub day_name_np {
 =head2 month_name()
 
 Full English month name, e.g. C<"Asar">.
+
+    print NepaliDateTime::Date->new(2081, 3, 15)->month_name();   # Asar
+
 
 =cut
 
@@ -459,6 +490,9 @@ sub month_name {
 
 Abbreviated English month name, e.g. C<"Asa">.
 
+    print NepaliDateTime::Date->new(2081, 3, 15)->month_name_abbr();   # Asa
+
+
 =cut
 
 sub month_name_abbr {
@@ -469,6 +503,10 @@ sub month_name_abbr {
 =head2 month_name_np()
 
 Month name in Nepali (Devanagari).
+
+    binmode STDOUT, ":utf8";
+    print NepaliDateTime::Date->new(2081, 3, 15)->month_name_np();   # असार
+
 
 =cut
 
@@ -481,6 +519,10 @@ sub month_name_np {
 
 Number of days in the current month.
 
+    my $d = NepaliDateTime::Date->new(2081, 2, 1);
+    print $d->days_in_month();   # 32 (Jestha 2081 has 32 days)
+
+
 =cut
 
 sub days_in_month {
@@ -491,6 +533,10 @@ sub days_in_month {
 =head2 days_in_year()
 
 Total number of days in the current BS year.
+
+    my $d = NepaliDateTime::Date->new(2081, 1, 1);
+    print $d->days_in_year();   # 365 or 366
+
 
 =cut
 
@@ -509,6 +555,12 @@ sub _days_in_year {
 
 Day number within the year (1-based).
 
+    my $d = NepaliDateTime::Date->new(2081, 1, 1);
+    print $d->day_of_year();   # 1
+    $d = NepaliDateTime::Date->new(2081, 3, 15);
+    print $d->day_of_year();   # 77 (31+32+14 before Asar 15)
+
+
 =cut
 
 sub day_of_year {
@@ -519,6 +571,10 @@ sub day_of_year {
 =head2 week_of_year()
 
 Week number within the year (1-based, week starts on Sunday).
+
+    my $d = NepaliDateTime::Date->new(2081, 1, 1);
+    print $d->week_of_year();   # 1
+
 
 =cut
 
@@ -600,6 +656,12 @@ sub fiscal_quarter {
 Returns true (1) if the day is Saturday (the Nepal weekend day).
 (Friday is a half-day in Nepal; returns 0 for Friday unless $include_friday is set.)
 
+    my $d = NepaliDateTime::Date->new(2081, 3, 15);
+    print $d->is_weekend();                     # 0 (Wednesday)
+    print $d->is_weekend(1);                    # 0 (include_friday, still not Fri/Sat)
+    my $sat = $d->next_weekday(6);
+    print $sat->is_weekend();                   # 1
+
 =cut
 
 sub is_weekend {
@@ -628,13 +690,22 @@ sub is_holiday { 0 }
 
 Returns a new date C<$n> days in the future (or past for negative C<$n>).
 
+    my $d  = NepaliDateTime::Date->new(2081, 3, 15);
+    my $d2 = $d->add_days(10);    # 2081-03-25
+    my $d3 = $d->add_days(-10);   # 2081-03-05
+    # Operator shorthand:
+    my $d4 = $d + 10;             # 2081-03-25
+
+
 =cut
 
 sub add_days {
     my ($self, $n) = @_;
     my $ord = $self->toordinal() + $n;
     croak "Result out of supported BS range" if $ord < 1 || $ord > $NepaliDateTime::Data::MAXORDINAL;
-    return NepaliDateTime::Date->from_ordinal($ord);
+    # Use (ref $self) so that calling add_days on a NepaliDateTime::DateTime
+    # subclass returns the correct subclass, not a bare Date object.
+    return (ref $self)->from_ordinal($ord);
 }
 
 =head2 add_months($n)
@@ -643,6 +714,11 @@ Returns a new date C<$n> months in the future (negative for past).
 
 If the resulting month has fewer days than the current day, the day is clamped
 to the last day of that month.
+
+    my $d  = NepaliDateTime::Date->new(2081, 3, 15);
+    my $d2 = $d->add_months(3);    # 2081-06-15
+    my $d3 = $d->add_months(-1);   # 2081-02-15
+
 
 =cut
 
@@ -655,13 +731,20 @@ sub add_months {
     croak "Result out of supported BS range" if $ny > $NepaliDateTime::Data::MAXYEAR;
     my $dim = $NepaliDateTime::Data::DAYS_IN_MONTH{$ny}[$nm];
     my $nd  = $self->{day} > $dim ? $dim : $self->{day};
-    return NepaliDateTime::Date->new($ny, $nm, $nd);
+    # Use (ref $self) so that DateTime subclass is preserved (time fields
+    # default to midnight when called via DateTime->new with 3 args).
+    return (ref $self)->new($ny, $nm, $nd);
 }
 
 =head2 add_years($n)
 
 Returns a new date C<$n> years in the future (negative for past). Day is
 clamped to month end if necessary.
+
+    my $d  = NepaliDateTime::Date->new(2081, 3, 15);
+    my $d2 = $d->add_years(1);    # 2082-03-15
+    my $d3 = $d->add_years(-1);   # 2080-03-15
+
 
 =cut
 
@@ -674,6 +757,10 @@ sub add_years {
 
 Returns the first day of the current month.
 
+    my $d = NepaliDateTime::Date->new(2081, 3, 15);
+    print $d->month_start();   # 2081-03-01
+
+
 =cut
 
 sub month_start {
@@ -684,6 +771,10 @@ sub month_start {
 =head2 month_end()
 
 Returns the last day of the current month.
+
+    my $d = NepaliDateTime::Date->new(2081, 3, 15);
+    print $d->month_end();   # 2081-03-31 (Asar 2081 has 31 days)
+
 
 =cut
 
@@ -697,6 +788,10 @@ sub month_end {
 
 Returns 1 Baishakh of the current year.
 
+    my $d = NepaliDateTime::Date->new(2081, 6, 15);
+    print $d->year_start();   # 2081-01-01
+
+
 =cut
 
 sub year_start {
@@ -707,6 +802,10 @@ sub year_start {
 =head2 year_end()
 
 Returns the last day of Chaitra (month 12) of the current year.
+
+    my $d = NepaliDateTime::Date->new(2081, 6, 15);
+    print $d->year_end();   # 2081-12-30 (or 31 depending on year)
+
 
 =cut
 
@@ -720,6 +819,10 @@ sub year_end {
 
 Returns the start of the fiscal year this date falls in (1 Shrawan).
 
+    my $d = NepaliDateTime::Date->new(2081, 6, 15);
+    print $d->fiscal_year_start();   # 2081-04-01 (1 Shrawan 2081)
+
+
 =cut
 
 sub fiscal_year_start {
@@ -731,6 +834,10 @@ sub fiscal_year_start {
 =head2 fiscal_year_end()
 
 Returns the end of the fiscal year this date falls in (last day of Ashadh).
+
+    my $d = NepaliDateTime::Date->new(2081, 6, 15);
+    print $d->fiscal_year_end();   # 2082-03-31 (last day of Asar 2082)
+
 
 =cut
 
@@ -765,6 +872,11 @@ sub age_from {
 Returns the number of days from this date to C<$other> (positive if $other is
 in the future).
 
+    my $d     = NepaliDateTime::Date->new(2081, 1,  1);
+    my $other = NepaliDateTime::Date->new(2081, 3, 15);
+    print $d->days_until($other);   # 76
+
+
 =cut
 
 sub days_until {
@@ -776,6 +888,11 @@ sub days_until {
 =head2 days_since($other)
 
 Returns the number of days from C<$other> to this date.
+
+    my $today = NepaliDateTime::Date->new(2081, 3, 15);
+    my $past  = NepaliDateTime::Date->new(2081, 1,  1);
+    print $today->days_since($past);   # 76
+
 
 =cut
 
@@ -810,6 +927,11 @@ sub nth_weekday_of_month {
 
 Returns the last occurrence of C<$weekday> in the current month.
 
+    my $d = NepaliDateTime::Date->new(2081, 3, 15);
+    my $last_sat = $d->last_weekday_of_month(6);   # last Saturday of Asar 2081
+    print $last_sat;
+
+
 =cut
 
 sub last_weekday_of_month {
@@ -825,6 +947,11 @@ sub last_weekday_of_month {
 
 Returns the next occurrence of C<$weekday> on or after this date.
 
+    my $d = NepaliDateTime::Date->new(2081, 3, 15);   # Wednesday
+    my $next_fri = $d->next_weekday(5);   # next Friday on or after 2081-03-15
+    print $next_fri;
+
+
 =cut
 
 sub next_weekday {
@@ -836,6 +963,11 @@ sub next_weekday {
 =head2 prev_weekday($weekday)
 
 Returns the previous occurrence of C<$weekday> on or before this date.
+
+    my $d = NepaliDateTime::Date->new(2081, 3, 15);   # Wednesday
+    my $prev_sun = $d->prev_weekday(0);   # most recent Sunday on or before 2081-03-15
+    print $prev_sun;
+
 
 =cut
 
@@ -861,6 +993,24 @@ sub replace {
     my $d = $args{day}   // $self->{day};
     return NepaliDateTime::Date->new($y, $m, $d);
 }
+
+=head1 OPERATORS
+
+The following Perl operators are overloaded:
+
+    $d + 10         Add 10 days; returns a new date
+    $d - 10         Subtract 10 days; returns a new date
+    $d1 - $d2       Difference in days (integer)
+    $d1 == $d2      Ordinal equality
+    $d1 != $d2      Ordinal inequality
+    $d1 <  $d2      Ordinal less-than
+    $d1 <= $d2      Ordinal less-than-or-equal
+    $d1 >  $d2      Ordinal greater-than
+    $d1 >= $d2      Ordinal greater-than-or-equal
+    $d1 <=> $d2     Ordinal three-way comparison
+    "$d"            String (same as isoformat())
+
+=cut
 
 # ---------------------------------------------------------------------------
 # Operators
@@ -916,6 +1066,11 @@ sub _op_cmp { $_[0]->toordinal() <=> $_[1]->toordinal() }
 
 Returns the date as C<"YYYY-MM-DD"> in BS.
 
+    my $d = NepaliDateTime::Date->new(2081, 3, 15);
+    print $d->isoformat();   # 2081-03-15
+    print "$d";              # same (string overloading)
+
+
 =cut
 
 sub isoformat {
@@ -927,6 +1082,9 @@ sub isoformat {
 
 Alias for C<isoformat()>. Also used by string overloading (C<"$date">).
 
+    print $d->to_string();   # 2081-03-15
+
+
 =cut
 
 sub to_string { $_[0]->isoformat() }
@@ -934,6 +1092,10 @@ sub to_string { $_[0]->isoformat() }
 =head2 ctime()
 
 Returns a C<ctime>-style string, e.g. C<"Wed Asa 15 00:00:00 2081">.
+
+    my $d = NepaliDateTime::Date->new(2081, 3, 15);
+    print $d->ctime();   # Wed Asa 15 00:00:00 2081
+
 
 =cut
 
@@ -977,6 +1139,14 @@ Supported directives:
     %S   Second 00-59   (00 for date-only)
     %f   Microseconds   (000000 for date-only)
     %%   Literal %
+
+Example:
+
+    my $d = NepaliDateTime::Date->new(2081, 3, 15);
+    $d->strftime('%Y-%m-%d');          # "2081-03-15"
+    $d->strftime('%A, %d %B %Y');    # "Wednesday, 15 Asar 2081"
+    $d->strftime('%K %N %D');         # Devanagari: year month day
+    $d->strftime('%d/%m/%y');         # "15/03/81"
 
 =cut
 
@@ -1057,6 +1227,9 @@ NepaliDateTime::Date.  Supports the same directives as C<strftime>.
 
     my $d = NepaliDateTime::Date->strptime('2081-03-15', '%Y-%m-%d');
     my $d = NepaliDateTime::Date->strptime('15 Asar 2081', '%d %B %Y');
+    my $d = NepaliDateTime::Date->strptime('2081/03/15', '%Y/%m/%d');
+    my $d = NepaliDateTime::Date->strptime('Wednesday 15 Asar', '%A %d %B');
+
 
 =cut
 
@@ -1176,6 +1349,10 @@ sub format_devanagari {
 
 Returns the date as C<"DD Month YYYY"> in English month names.
 
+    my $d = NepaliDateTime::Date->new(2081, 3, 15);
+    print $d->format_nepali_date();   # "15 Asar 2081"
+
+
 =cut
 
 sub format_nepali_date {
@@ -1207,53 +1384,76 @@ Options (key-value pairs):
 sub print_calendar {
     my ($self, %opts) = @_;
     my $use_np  = $opts{devanagari} // 0;
-    my $width   = $opts{width} // 4;
+    # Default column width: 4 for ASCII, 6 for Devanagari (wider glyphs need
+    # more space to avoid overlap in most terminals).
+    my $width   = $opts{width} // ($use_np ? 6 : 4);
+
+    # Ensure STDOUT accepts wide (Unicode) characters so Devanagari digits and
+    # month names print without the "Wide character in printf" warning.
+    binmode STDOUT, ':utf8';
 
     my $year  = $self->{year};
     my $month = $self->{month};
     my $dim   = $NepaliDateTime::Data::DAYS_IN_MONTH{$year}[$month];
 
-    # Header
+    # Header: centred over the 7-column grid.
+    # total_w = 7 columns * (width + 1 separator) minus the last separator.
     my $mname = $use_np ? $NepaliDateTime::Data::MONTH_NP[$month]
                         : $NepaliDateTime::Data::MONTH_FULL[$month];
-    my $ystr  = $use_np ? _to_np(sprintf('%d', $year)) : sprintf('%04d', $year);
+    my $ystr   = $use_np ? _to_np(sprintf('%d', $year)) : sprintf('%04d', $year);
     my $header = "$mname $ystr";
     my $total_w = ($width + 1) * 7 - 1;
-    printf "\n%*s\n", int(($total_w + length($header))/2), $header;
+    # %*s right-aligns to N chars; N = (total_w + header_len)/2 produces
+    # (total_w - header_len)/2 leading spaces, i.e. centred output.
+    printf "\n%*s\n", int(($total_w + length($header)) / 2), $header;
 
-    # Weekday header (Sun first)
+    # Weekday header row (Sun … Sat).
     my @wdays = $use_np ? @NepaliDateTime::Data::WDAY_NP : @NepaliDateTime::Data::WDAY_ABBR;
-    # Truncate to $width chars
+    # Each cell: left-aligned, truncated to $width characters.
     print join(' ', map { sprintf("%-*s", $width, substr($_, 0, $width)) } @wdays), "\n";
 
+    # First weekday of the month (0=Sun … 6=Sat).
     my $first_wday = NepaliDateTime::Date->new($year, $month, 1)->weekday();
-    my $col = 0;
+    my $col = $first_wday;
 
-    # Blank cells before the 1st
-    print '    ' x $first_wday;
-    $col = $first_wday;
+    # Blank cells before day 1.  Each cell is $width chars wide, followed by
+    # one space separator — exactly matching the day-number cell layout below.
+    # Bug fix: was '    ' x $first_wday (hardcoded 4 spaces, missing separator).
+    print ' ' x (($width + 1) * $first_wday);
 
-    # Today (for optional highlighting)
+    # Today (for optional ANSI highlighting).
     my $today = NepaliDateTime::Date->today();
     my $is_this_month = ($today->{year} == $year && $today->{month} == $month);
 
     for my $day (1 .. $dim) {
         my $str = $use_np ? _to_np(sprintf('%d', $day)) : sprintf('%d', $day);
         if ($is_this_month && $day == $today->{day}) {
+            # ANSI bold red for today; %*s pads by character count (fine for
+            # ASCII; Devanagari glyphs are still single-column in UTF-8 terms).
             printf("\033[1;31m%*s\033[0m", $width, $str);
         } else {
             printf('%*s', $width, $str);
         }
         $col++;
-        if ($col % 7 == 0) { print "\n"; }
-        else                { print ' '; }
+        if ($col % 7 == 0) {
+            print "\n";
+        } else {
+            print ' ';
+        }
     }
-    print "\n\n";
+    # End the last (possibly partial) row, then leave one blank line.
+    print "\n" if $col % 7 != 0;
+    print "\n";
 }
 
 =head2 print_year_calendar(%opts)
 
-Prints calendars for all 12 months of the year, 3 months per row.
+Prints calendars for all 12 months of the year, one month at a time,
+in sequence from Baishakh (1) to Chaitra (12).  Accepts the same options
+as C<print_calendar()>.
+
+    $date->print_year_calendar();
+    $date->print_year_calendar(devanagari => 1);
 
 =cut
 
@@ -1273,6 +1473,12 @@ sub print_year_calendar {
 =head2 NepaliDateTime::Date::days_in_month_for($year, $month)
 
 Returns the number of days in the given BS year/month.
+
+    # Class method form:
+    print NepaliDateTime::Date->days_in_month_for(2081, 2);   # 32 (Jestha 2081)
+    # Also works as instance method (ignores arguments, uses own month):
+    print NepaliDateTime::Date->new(2081, 3, 15)->days_in_month_for();
+
 
 =cut
 
@@ -1296,6 +1502,11 @@ sub days_in_month_for {
 
 Returns true if C<($year, $month, $day)> is a valid BS date.
 
+    NepaliDateTime::Date->is_valid(2081, 3, 15);  # 1 (true)
+    NepaliDateTime::Date->is_valid(2081, 3, 99);  # 0 (false – day out of range)
+    NepaliDateTime::Date->is_valid(1900, 1,  1);  # 0 (false – year before 1975)
+
+
 =cut
 
 sub is_valid {
@@ -1311,6 +1522,10 @@ sub is_valid {
 
 Returns a copy of this date object.
 
+    my $d2 = $d->clone();
+    # $d == $d2 is true (same date), but $d and $d2 are different Perl objects.
+
+
 =cut
 
 sub clone {
@@ -1321,6 +1536,11 @@ sub clone {
 =head2 stringify()
 
 Human-readable string (same as C<isoformat()>).  Also invoked by C<"$date">.
+
+    my $d = NepaliDateTime::Date->new(2081, 3, 15);
+    print $d->stringify();   # 2081-03-15
+    print "$d";              # same
+
 
 =cut
 
