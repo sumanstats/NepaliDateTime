@@ -1401,7 +1401,7 @@ Options (key-value pairs):
 
     devanagari => 1    Use Devanagari month name and digits
     highlight  => 1    Highlight today (ANSI colour; default on if $date == today)
-    width      => 4    Column width (default 4)
+    width      => N    Column width (default 4; 8 when devanagari => 1)
 
 =cut
 
@@ -1409,9 +1409,10 @@ sub print_calendar {
     my ($self, %opts) = @_;
     my $use_np  = $opts{devanagari} // 0;
     my $highlight = exists $opts{highlight} ? $opts{highlight} : 1;
-    # Default column width: 4 for ASCII, 6 for Devanagari (wider glyphs need
-    # more space to avoid overlap in most terminals).
-    my $width   = $opts{width} // ($use_np ? 6 : 4);
+    # Default column width: 4 for ASCII, 8 for Devanagari.
+    # Devanagari glyph shaping differs by terminal/font, so wider columns
+    # reduce visual overlap and keep month grids aligned more reliably.
+    my $width   = $opts{width} // ($use_np ? 8 : 4);
     croak "width must be a positive integer, got $width"
         unless defined $width && $width =~ /^\d+$/ && $width >= 1;
 
@@ -1436,7 +1437,9 @@ sub print_calendar {
     print "\n", (' ' x $left_pad), $header, "\n";
 
     # Weekday header row (Sun … Sat).
-    my @wdays = $use_np ? @NepaliDateTime::Data::WDAY_NP : @NepaliDateTime::Data::WDAY_ABBR;
+    my @wdays = $use_np
+        ? ('आइत', 'सोम', 'मंगल', 'बुध', 'बिहि', 'शुक्र', 'शनि')
+        : @NepaliDateTime::Data::WDAY_ABBR;
     # Each cell: left-aligned, truncated to $width grapheme clusters.
     print join(' ', map { _gc_pad(_gc_truncate($_, $width), $width, 'left') } @wdays), "\n";
 

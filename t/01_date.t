@@ -651,7 +651,7 @@ subtest 'print_calendar alignment uses grapheme-safe widths' => sub {
     }
     my ($np_wday) = grep { $_ =~ /आइत/ } split /\n/, $np;
     ok(defined $np_wday, 'found Devanagari weekday header');
-    is($gc_len->($np_wday), (6 + 1) * 7 - 1, 'Devanagari weekday row has fixed calendar width');
+    is($gc_len->($np_wday), (8 + 1) * 7 - 1, 'Devanagari weekday row has fixed calendar width');
 };
 
 subtest 'print_calendar highlight option controls ANSI highlighting' => sub {
