@@ -1363,6 +1363,30 @@ sub format_nepali_date {
         $self->{year});
 }
 
+sub _gc_len {
+    my ($s) = @_;
+    $s //= '';
+    return scalar(() = $s =~ /\X/gu);
+}
+
+sub _gc_truncate {
+    my ($s, $max) = @_;
+    $s //= '';
+    return '' if $max <= 0;
+    my @g = $s =~ /\X/gu;
+    return join('', @g[0 .. $max - 1]) if @g > $max;
+    return $s;
+}
+
+sub _gc_pad {
+    my ($s, $width, $align) = @_;
+    $s //= '';
+    my $len = _gc_len($s);
+    return $s if $len >= $width;
+    my $pad = ' ' x ($width - $len);
+    return ($align && $align eq 'left') ? ($s . $pad) : ($pad . $s);
+}
+
 # ---------------------------------------------------------------------------
 # Calendar display
 # ---------------------------------------------------------------------------
@@ -1384,9 +1408,12 @@ Options (key-value pairs):
 sub print_calendar {
     my ($self, %opts) = @_;
     my $use_np  = $opts{devanagari} // 0;
+    my $highlight = exists $opts{highlight} ? $opts{highlight} : 1;
     # Default column width: 4 for ASCII, 6 for Devanagari (wider glyphs need
     # more space to avoid overlap in most terminals).
     my $width   = $opts{width} // ($use_np ? 6 : 4);
+    croak "width must be a positive integer, got $width"
+        unless defined $width && $width =~ /^\d+$/ && $width >= 1;
 
     # Ensure STDOUT accepts wide (Unicode) characters so Devanagari digits and
     # month names print without the "Wide character in printf" warning.
@@ -1403,14 +1430,15 @@ sub print_calendar {
     my $ystr   = $use_np ? _to_np(sprintf('%d', $year)) : sprintf('%04d', $year);
     my $header = "$mname $ystr";
     my $total_w = ($width + 1) * 7 - 1;
-    # %*s right-aligns to N chars; N = (total_w + header_len)/2 produces
-    # (total_w - header_len)/2 leading spaces, i.e. centred output.
-    printf "\n%*s\n", int(($total_w + length($header)) / 2), $header;
+    my $header_w = _gc_len($header);
+    my $left_pad = int(($total_w - $header_w) / 2);
+    $left_pad = 0 if $left_pad < 0;
+    print "\n", (' ' x $left_pad), $header, "\n";
 
     # Weekday header row (Sun … Sat).
     my @wdays = $use_np ? @NepaliDateTime::Data::WDAY_NP : @NepaliDateTime::Data::WDAY_ABBR;
-    # Each cell: left-aligned, truncated to $width characters.
-    print join(' ', map { sprintf("%-*s", $width, substr($_, 0, $width)) } @wdays), "\n";
+    # Each cell: left-aligned, truncated to $width grapheme clusters.
+    print join(' ', map { _gc_pad(_gc_truncate($_, $width), $width, 'left') } @wdays), "\n";
 
     # First weekday of the month (0=Sun … 6=Sat).
     my $first_wday = NepaliDateTime::Date->new($year, $month, 1)->weekday();
@@ -1427,12 +1455,12 @@ sub print_calendar {
 
     for my $day (1 .. $dim) {
         my $str = $use_np ? _to_np(sprintf('%d', $day)) : sprintf('%d', $day);
-        if ($is_this_month && $day == $today->{day}) {
-            # ANSI bold red for today; %*s pads by character count (fine for
-            # ASCII; Devanagari glyphs are still single-column in UTF-8 terms).
-            printf("\033[1;31m%*s\033[0m", $width, $str);
+        my $cell = _gc_pad($str, $width, 'right');
+        if ($highlight && $is_this_month && $day == $today->{day}) {
+            # ANSI bold red for today.
+            print "\033[1;31m$cell\033[0m";
         } else {
-            printf('%*s', $width, $str);
+            print $cell;
         }
         $col++;
         if ($col % 7 == 0) {

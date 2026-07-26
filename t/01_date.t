@@ -624,4 +624,58 @@ subtest 'print_calendar smoke test' => sub {
     like($buf, qr/Asar/, 'calendar output contains month name');
 };
 
+subtest 'print_calendar alignment uses grapheme-safe widths' => sub {
+    my $d = NepaliDateTime::Date->new(2081, 3, 15);
+    my $gc_len = sub {
+        my ($s) = @_;
+        return scalar(() = $s =~ /\X/gu);
+    };
+
+    my $ascii = '';
+    {
+        local *STDOUT;
+        open(STDOUT, '>', \$ascii) or die $!;
+        $d->print_calendar(highlight => 0);
+        close STDOUT;
+    }
+    my ($ascii_wday) = grep { $_ =~ /Sun/ } split /\n/, $ascii;
+    ok(defined $ascii_wday, 'found ASCII weekday header');
+    is($gc_len->($ascii_wday), (4 + 1) * 7 - 1, 'ASCII weekday row has fixed calendar width');
+
+    my $np = '';
+    {
+        local *STDOUT;
+        open(STDOUT, '>', \$np) or die $!;
+        $d->print_calendar(devanagari => 1, highlight => 0);
+        close STDOUT;
+    }
+    my ($np_wday) = grep { $_ =~ /आइत/ } split /\n/, $np;
+    ok(defined $np_wday, 'found Devanagari weekday header');
+    is($gc_len->($np_wday), (6 + 1) * 7 - 1, 'Devanagari weekday row has fixed calendar width');
+};
+
+subtest 'print_calendar highlight option controls ANSI highlighting' => sub {
+    my $d = NepaliDateTime::Date->new(2081, 3, 15);
+    no warnings 'redefine';
+    local *NepaliDateTime::Date::today = sub { NepaliDateTime::Date->new(2081, 3, 15) };
+
+    my $no_hl = '';
+    {
+        local *STDOUT;
+        open(STDOUT, '>', \$no_hl) or die $!;
+        $d->print_calendar(highlight => 0);
+        close STDOUT;
+    }
+    unlike($no_hl, qr/\e\[1;31m/, 'no ANSI highlight when highlight => 0');
+
+    my $with_hl = '';
+    {
+        local *STDOUT;
+        open(STDOUT, '>', \$with_hl) or die $!;
+        $d->print_calendar(highlight => 1);
+        close STDOUT;
+    }
+    like($with_hl, qr/\e\[1;31m/, 'ANSI highlight appears when highlight => 1');
+};
+
 done_testing();
