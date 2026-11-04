@@ -11,7 +11,7 @@ on 'configure' => sub {
 };
 
 on 'test' => sub {
-    requires 'Test2::V1', '1.302218';   
+    requires 'Test2::V0', '0.000164';   
     requires 'FindBin';                    # core
 };
 

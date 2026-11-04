@@ -5,6 +5,8 @@ use warnings;
 use utf8;
 use Carp qw(croak confess);
 use POSIX qw(floor);
+use Encode ();
+use Unicode::UCD qw(charinfo);
 
 use NepaliDateTime::Data qw();
 
@@ -1133,11 +1135,17 @@ Supported directives:
     %j   Day of year (001-366)
     %U   Week number (Sunday start)
     %H   Hour 00-23     (00 for date-only)
-    %I   Hour 01-12     (00 for date-only)
+    %h   Hour in Devanagari numerals
+    %I   Hour 01-12     (12 for date-only / midnight)
+    %i   12-hour clock in Devanagari numerals
     %p   AM/PM          (AM for date-only)
     %M   Minute 00-59   (00 for date-only)
+    %l   Minute in Devanagari numerals
     %S   Second 00-59   (00 for date-only)
+    %s   Second in Devanagari numerals
     %f   Microseconds   (000000 for date-only)
+    %z   UTC offset (+0545 for Nepal)
+    %Z   Timezone name  (NST)
     %%   Literal %
 
 Example:
@@ -1313,8 +1321,8 @@ sub _do_strptime {
     }
     $m{H}  = $+{H}+0  if defined $+{H};
     $m{I}  = $+{I}+0  if defined $+{I};
-    $m{M2} = $+{M2}+0 if defined $+{M2};
-    $m{m}  //= $m{M2};  # avoid collision with minute (M2)
+    $m{M2} = $+{M2}+0 if defined $+{M2};   # minute from %M (kept separate
+                                           # from $m{m}, the month number)
     $m{S}  = $+{S}+0  if defined $+{S};
     $m{p}  = $+{p}    if defined $+{p};
     $m{f}  = $+{f}    if defined $+{f};
@@ -1363,6 +1371,108 @@ sub format_nepali_date {
         $self->{year});
 }
 
+# ---------------------------------------------------------------------------
+# Terminal display-width helpers (Unicode East Asian Width based)
+# ---------------------------------------------------------------------------
+#
+# Grapheme clusters are NOT one terminal cell wide for every script.  In
+# Devanagari, combining vowel signs (matras) such as the i-matra U+093F in
+# "आइत" are precomposed spacing characters: they occupy their own advance
+# width on a monospaced terminal even though some renderers position them
+# visually to the left of the base consonant.  Counting grapheme clusters
+# instead of display cells therefore under-counts Devanagari strings and
+# misaligns calendar grids.  The functions below compute the number of
+# monospaced terminal columns a string occupies, following the Unicode
+# East Asian Width algorithm used by modern terminals (wcwidth-style):
+#
+#   * C0/C1 control characters        -> 0 columns
+#   * combining marks (Mn/Me/Cf)      -> 0 columns
+#   * East Asian Wide/Fullwidth (W/F) -> 2 columns
+#   * everything else                 -> 1 column
+
+my %_EAW_WIDTH;   # codepoint -> display columns (memoised)
+
+sub _cp_width {
+    my ($cp) = @_;
+    return $_EAW_WIDTH{$cp} if exists $_EAW_WIDTH{$cp};
+
+    my $w;
+    if ($cp < 0x20 || ($cp >= 0x7F && $cp <= 0x9F)) {
+        $w = 0;                                  # ASCII / C1 controls
+    } else {
+        my $i = charinfo($cp);
+        if (!$i) {
+            $w = 1;                              # unassigned: assume narrow
+        } else {
+            my $cat = $i->{category};
+            if ($cat eq 'Mn' || $cat eq 'Me' || $cat eq 'Cf') {
+                $w = 0;                          # non-spacing marks
+            } elsif (($i->{EastAsianWidth} // '') =~ /^[WF]$/) {
+                $w = 2;                          # wide / fullwidth
+            } else {
+                $w = 1;
+            }
+        }
+    }
+    $_EAW_WIDTH{$cp} = $w;
+    return $w;
+}
+
+# Normalise a string for width calculations: raw UTF-8 byte strings (no
+# internal flag) are decoded into character strings.  Never modifies the
+# caller's scalar.
+sub _to_chars {
+    my ($s) = @_;
+    return '' unless defined $s;
+    if (!utf8::is_utf8($s) && $s =~ /[^\x00-\x7F]/) {
+        my $copy = $s;
+        utf8::decode($copy);       # no-op (leaves $copy untouched) on bad UTF-8
+        return $copy;
+    }
+    return $s;
+}
+
+# Display width (terminal columns) of a string.
+sub _disp_len {
+    my ($s) = @_;
+    return 0 unless defined $s;
+    $s = _to_chars($s);
+    my $total = 0;
+    $total += _cp_width(ord $_) for split //, $s;
+    return $total;
+}
+
+# Truncate a string to at most $max display columns (never splits a
+# multi-column character).
+sub _disp_truncate {
+    my ($s, $max) = @_;
+    $s = _to_chars($s);
+    return '' if !defined $max || $max <= 0;
+    return $s if _disp_len($s) <= $max;
+    my $out = '';
+    my $len = 0;
+    for my $ch (split //, $s) {
+        my $cw = _cp_width(ord $ch);
+        last if $len + $cw > $max;
+        $out .= $ch;
+        $len += $cw;
+    }
+    return $out;
+}
+
+# Pad a string with spaces to exactly $width display columns.
+# $align: 'left' pads on the right, anything else pads on the left.
+sub _disp_pad {
+    my ($s, $width, $align) = @_;
+    $s = _to_chars($s);
+    my $len = _disp_len($s);
+    return $s if $len >= $width;
+    my $pad = ' ' x ($width - $len);
+    return ($align && $align eq 'left') ? ($s . $pad) : ($pad . $s);
+}
+
+# Legacy grapheme-cluster helpers kept for backwards compatibility; new code
+# should use the display-width functions above.
 sub _gc_len {
     my ($s) = @_;
     $s //= '';
@@ -1399,9 +1509,14 @@ Prints a month calendar to STDOUT.
 
 Options (key-value pairs):
 
-    devanagari => 1    Use Devanagari month name and digits
-    highlight  => 1    Highlight today (ANSI colour; default on if $date == today)
-    width      => N    Column width (default 4; 8 when devanagari => 1)
+    devanagari => 1    Use Devanagari month name, digits and weekday names
+    highlight  => 1    Highlight today (ANSI colour; default on)
+    width      => N    Column width in terminal cells (default 4)
+    fh         => $fh  Output filehandle (default STDOUT)
+
+Alignment is computed from Unicode East Asian Width display columns, so
+Devanagari text lines up correctly on any UTF-8 capable terminal (Linux,
+macOS, Windows Terminal / modern conhost with the UTF-8 code page active).
 
 =cut
 
@@ -1409,16 +1524,18 @@ sub print_calendar {
     my ($self, %opts) = @_;
     my $use_np  = $opts{devanagari} // 0;
     my $highlight = exists $opts{highlight} ? $opts{highlight} : 1;
-    # Default column width: 4 for ASCII, 8 for Devanagari.
-    # Devanagari glyph shaping differs by terminal/font, so wider columns
-    # reduce visual overlap and keep month grids aligned more reliably.
-    my $width   = $opts{width} // ($use_np ? 8 : 4);
+    # Default column width: 4 terminal cells.  Padding is now based on true
+    # display width (wcwidth-style), so no wider "safety" column is needed
+    # for Devanagari.
+    my $width   = $opts{width} // 4;
     croak "width must be a positive integer, got $width"
         unless defined $width && $width =~ /^\d+$/ && $width >= 1;
+    my $out = $opts{fh} // \*STDOUT;
 
-    # Ensure STDOUT accepts wide (Unicode) characters so Devanagari digits and
-    # month names print without the "Wide character in printf" warning.
-    binmode STDOUT, ':utf8';
+    # Ensure the stream accepts wide (Unicode) characters so Devanagari
+    # digits and month names print without the "Wide character in printf"
+    # warning.
+    binmode($out, ':utf8');
 
     my $year  = $self->{year};
     my $month = $self->{month};
@@ -1431,17 +1548,18 @@ sub print_calendar {
     my $ystr   = $use_np ? _to_np(sprintf('%d', $year)) : sprintf('%04d', $year);
     my $header = "$mname $ystr";
     my $total_w = ($width + 1) * 7 - 1;
-    my $header_w = _gc_len($header);
+    my $header_w = _disp_len($header);
     my $left_pad = int(($total_w - $header_w) / 2);
     $left_pad = 0 if $left_pad < 0;
-    print "\n", (' ' x $left_pad), $header, "\n";
+    print {$out} "\n", (' ' x $left_pad), $header, "\n";
 
     # Weekday header row (Sun … Sat).
     my @wdays = $use_np
         ? ('आइत', 'सोम', 'मंगल', 'बुध', 'बिहि', 'शुक्र', 'शनि')
         : @NepaliDateTime::Data::WDAY_ABBR;
-    # Each cell: left-aligned, truncated to $width grapheme clusters.
-    print join(' ', map { _gc_pad(_gc_truncate($_, $width), $width, 'left') } @wdays), "\n";
+    # Each cell: left-aligned, truncated/padded to exactly $width display
+    # columns.
+    print {$out} join(' ', map { _disp_pad(_disp_truncate($_, $width), $width, 'left') } @wdays), "\n";
 
     # First weekday of the month (0=Sun … 6=Sat).
     my $first_wday = NepaliDateTime::Date->new($year, $month, 1)->weekday();
@@ -1449,8 +1567,7 @@ sub print_calendar {
 
     # Blank cells before day 1.  Each cell is $width chars wide, followed by
     # one space separator — exactly matching the day-number cell layout below.
-    # Bug fix: was '    ' x $first_wday (hardcoded 4 spaces, missing separator).
-    print ' ' x (($width + 1) * $first_wday);
+    print {$out} ' ' x (($width + 1) * $first_wday);
 
     # Today (for optional ANSI highlighting).
     my $today = NepaliDateTime::Date->today();
@@ -1458,23 +1575,23 @@ sub print_calendar {
 
     for my $day (1 .. $dim) {
         my $str = $use_np ? _to_np(sprintf('%d', $day)) : sprintf('%d', $day);
-        my $cell = _gc_pad($str, $width, 'right');
+        my $cell = _disp_pad($str, $width, 'right');
         if ($highlight && $is_this_month && $day == $today->{day}) {
             # ANSI bold red for today.
-            print "\033[1;31m$cell\033[0m";
+            print {$out} "\033[1;31m$cell\033[0m";
         } else {
-            print $cell;
+            print {$out} $cell;
         }
         $col++;
         if ($col % 7 == 0) {
-            print "\n";
+            print {$out} "\n";
         } else {
-            print ' ';
+            print {$out} ' ';
         }
     }
     # End the last (possibly partial) row, then leave one blank line.
-    print "\n" if $col % 7 != 0;
-    print "\n";
+    print {$out} "\n" if $col % 7 != 0;
+    print {$out} "\n";
 }
 
 =head2 print_year_calendar(%opts)

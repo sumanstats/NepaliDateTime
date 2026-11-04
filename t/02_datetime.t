@@ -3,7 +3,7 @@
 # Covers all Python nepali_datetime.datetime tests plus Perl-specific extras.
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use Test2::V1 '-ipP';
+use Test2::V0;
 
 use NepaliDateTime::Date;
 use NepaliDateTime::DateTime;
