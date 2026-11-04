@@ -3,7 +3,7 @@
 # Mirrors Python nepali_datetime strftime/strptime tests and adds more.
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use Test2::V1 '-ipP';
+use Test2::V0;
 
 use NepaliDateTime::Date;
 use NepaliDateTime::DateTime;

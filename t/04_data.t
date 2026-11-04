@@ -2,7 +2,7 @@
 # t/04_data.t – tests for NepaliDateTime::Data calendar data correctness
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use Test2::V1 '-ipP';
+use Test2::V0;
 
 use NepaliDateTime::Data;
 use NepaliDateTime::Date;

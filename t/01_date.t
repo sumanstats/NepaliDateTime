@@ -1,10 +1,14 @@
 #!/usr/bin/env perl
 # t/01_date.t – comprehensive tests for NepaliDateTime::Date
 # Covers all Python nepali_datetime.date tests plus Perl-specific extras.
+use strict;
+use warnings;
+use utf8;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use Test2::V1 '-ipP';
+use Test2::V0;
 use Scalar::Util qw(refaddr);
+use Unicode::UCD qw(charinfo);
 
 use NepaliDateTime::Date;
 use NepaliDateTime::Data;
@@ -624,34 +628,52 @@ subtest 'print_calendar smoke test' => sub {
     like($buf, qr/Asar/, 'calendar output contains month name');
 };
 
-subtest 'print_calendar alignment uses grapheme-safe widths' => sub {
+subtest 'print_calendar alignment uses display-column widths' => sub {
     my $d = NepaliDateTime::Date->new(2081, 3, 15);
-    my $gc_len = sub {
+    # Terminal display width (wcwidth-style): combining marks count 0,
+    # East Asian Wide/Fullwidth count 2, everything else counts 1.
+    # Grapheme-cluster counting under-counts Devanagari spacing matras
+    # (e.g. the i-matra U+093F in "आइत"), which misaligns the grid.
+    my $disp_len = sub {
         my ($s) = @_;
-        return scalar(() = $s =~ /\X/gu);
+        return 0 unless defined $s;
+        utf8::decode($s) unless utf8::is_utf8($s);
+        my $total = 0;
+        for my $ch (split //, $s) {
+            my $cp = ord $ch;
+            if ($cp < 0x20 || ($cp >= 0x7F && $cp <= 0x9F)) { next; }
+            my $cat = charinfo($cp)->{category} // '';
+            next if $cat eq 'Mn' || $cat eq 'Me' || $cat eq 'Cf';
+            $total += 1;
+        }
+        return $total;
     };
 
     my $ascii = '';
-    {
-        local *STDOUT;
-        open(STDOUT, '>', \$ascii) or die $!;
-        $d->print_calendar(highlight => 0);
-        close STDOUT;
-    }
+    open(my $afh, '>', \$ascii) or die $!;
+    binmode $afh, ':utf8';
+    $d->print_calendar(highlight => 0, fh => $afh);
+    close $afh;
     my ($ascii_wday) = grep { $_ =~ /Sun/ } split /\n/, $ascii;
     ok(defined $ascii_wday, 'found ASCII weekday header');
-    is($gc_len->($ascii_wday), (4 + 1) * 7 - 1, 'ASCII weekday row has fixed calendar width');
+    is($disp_len->($ascii_wday), (4 + 1) * 7 - 1, 'ASCII weekday row has fixed calendar width');
 
     my $np = '';
-    {
-        local *STDOUT;
-        open(STDOUT, '>', \$np) or die $!;
-        $d->print_calendar(devanagari => 1, highlight => 0);
-        close STDOUT;
-    }
+    open(my $nfh, '>', \$np) or die $!;
+    binmode $nfh, ':utf8';
+    $d->print_calendar(devanagari => 1, highlight => 0, fh => $nfh);
+    close $nfh;
     my ($np_wday) = grep { $_ =~ /आइत/ } split /\n/, $np;
     ok(defined $np_wday, 'found Devanagari weekday header');
-    is($gc_len->($np_wday), (8 + 1) * 7 - 1, 'Devanagari weekday row has fixed calendar width');
+    is($disp_len->($np_wday), (4 + 1) * 7 - 1, 'Devanagari weekday row has fixed calendar width');
+
+    # Every rendered row of the Devanagari calendar after the centred title
+    # must occupy exactly the same number of terminal columns (grid
+    # integrity).  The title line is allowed to be narrower.
+    my @rows = grep { /\S/ } split /\n/, $np;
+    my $grid_w = (4 + 1) * 7 - 1;
+    my @bad = grep { $disp_len->($_) != $grid_w } @rows[1 .. $#rows];
+    is(\@bad, [], 'all weekday/day rows share the exact grid display width');
 };
 
 subtest 'print_calendar highlight option controls ANSI highlighting' => sub {

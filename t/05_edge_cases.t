@@ -4,7 +4,7 @@
 # cross-cutting behaviour that the Python package exercises implicitly.
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use Test2::V1 '-ipP';
+use Test2::V0;
 
 use NepaliDateTime::Date;
 use NepaliDateTime::DateTime;
