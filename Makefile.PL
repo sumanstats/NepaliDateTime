@@ -20,7 +20,7 @@ WriteMakefile(
     },
 
     TEST_REQUIRES => {
-        'Test2::V1' => '1.302218',
+        'Test2::V0' => '1.302218',
     },
 
     META_MERGE => {
